@@ -30,17 +30,17 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
     #--- FILL ME IN ---
     
     # Compute baseline (right camera translation minus left camera translation).
-    b = Twl[0:3,3] - Twr[0:3,3]
+    b = Twr[0:3,3] - Twl[0:3,3]
     
     # Unit vectors projecting from optical center to image plane points.
     # Use variables rayl and rayr for the rays.
-    rayl = Twl[0:3,0:3].dot ( inv(Kl).dot( np.vstack([pl,1]) ) ) 
-    norm_rl = norm(rayl)
-    rayl = rayl / norm_rl
+    rayl_no_norm = Twl[0:3,0:3].dot ( inv(Kl).dot( np.vstack([pl,1]) ) ) 
+    norm_rl = norm(rayl_no_norm)
+    rayl = rayl_no_norm / norm_rl
     
-    rayr = Twr[0:3,0:3].dot ( inv(Kr).dot( np.vstack([pr,1]) ) ) 
-    norm_rr = norm(rayr)
-    rayr = rayr / norm_rr
+    rayr_no_norm = Twr[0:3,0:3].dot ( inv(Kr).dot( np.vstack([pr,1]) ) ) 
+    norm_rr = norm(rayr_no_norm)
+    rayr = rayr_no_norm / norm_rr
     
     # Projected segment lengths.
     # Use variables ml and mr for the segment lengths.
@@ -64,26 +64,39 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
     # Add code here...
     
     #calculate the derivative of r_hat
+    #derivative of RL numerator w.r.t u and v
+    dul_num = Twl[0:3,0:3].dot( inv(Kl)[0:3,0:1] ) 
+    dvl_num = Twl[0:3,0:3].dot( inv(Kl)[0:3,1:2] ) 
     
-    #derivative of the scaling factor for u and v
-    dulscalar = (1/2) * ( ( norm(pl) ) ** (-1/2) ) * 2 * ( pl[0,0] )
-    dvlscalar = (1/2) * ( ( norm(pl) ) ** (-1/2) ) * 2 * ( pl[1,0] )
-    #derivative of RL w.r.t u and v, using quotient rule 
-    dul = (Twl[0:3,0:3].dot( inv(Kl)[0:3,0:1] ) * norm_rl -  rayl * dulscalar) / (norm_rl ** 2)
-    dvl = (Twl[0:3,0:3].dot( inv(Kl)[0:3,1:2] ) * norm_rl -  rayl * dvlscalar) / (norm_rl ** 2)
+    #derivative of the denominator for u and v
+    dul_denom = (1/2) * ( ( norm_rl ** 2 ) ** (-1/2) ) *  (2 * rayl_no_norm[0,0] * dul_num[0,0] +  2 * rayl_no_norm[1,0] * dul_num[1,0] + 2 * rayl_no_norm[2,0] * dul_num[2,0] )
+    dvl_denom = (1/2) * ( ( norm_rl ** 2 ) ** (-1/2) ) *  (2 * rayl_no_norm[0,0] * dvl_num[0,0] +  2 * rayl_no_norm[1,0] * dvl_num[1,0] + 2 * rayl_no_norm[2,0] * dvl_num[2,0] )
+    
+    #dul and dvl
+    dul = (dul_num * norm_rl - rayl_no_norm * dul_denom) / (norm_rl ** 2)
+    dvl = (dvl_num * norm_rl - rayl_no_norm * dvl_denom) / (norm_rl ** 2)
+        
+    
     #derivate of RL w.r.t ur and vr are 0
     dur = np.zeros(shape = (3,1))
     dvr = np.zeros(shape = (3,1))
     #putting them together
     drayl = np.hstack([dul,dvl,dur,dvr])
     
-    #derivative of the scaling factor for u and v
-    durscalar = (1/2) * ( ( norm(pr) ) ** (-1/2) ) * 2 * ( pr[0,0] )
-    dvrscalar = (1/2) * ( ( norm(pr) ) ** (-1/2) ) * 2 * ( pr[1,0] )
-    #derivative of RR w.r.t u and v, using quotient rule
-    dur = (Twr[0:3,0:3].dot( inv(Kr)[0:3,0:1] ) * norm_rr -  rayr * durscalar) / (norm_rr ** 2)
-    dvr = (Twr[0:3,0:3].dot( inv(Kr)[0:3,1:2] ) * norm_rr -  rayr * dvrscalar) / (norm_rr ** 2)
-    #derivate of RR w.r.t ul and vl are 0
+    #derivative of Rr numerator w.r.t u and v
+    dur_num = Twr[0:3,0:3].dot( inv(Kr)[0:3,0:1] ) 
+    dvr_num = Twr[0:3,0:3].dot( inv(Kr)[0:3,1:2] ) 
+    
+    #derivative of the denominator for u and v
+    dur_denom = (1/2) * ( ( norm_rr ** 2 ) ** (-1/2) ) *  (2 * rayr_no_norm[0,0] * dur_num[0,0] +  2 * rayr_no_norm[1,0] * dur_num[1,0] + 2 * rayr_no_norm[2,0] * dur_num[2,0] )
+    dvr_denom = (1/2) * ( ( norm_rr ** 2 ) ** (-1/2) ) *  (2 * rayr_no_norm[0,0] * dvr_num[0,0] +  2 * rayr_no_norm[1,0] * dvr_num[1,0] + 2 * rayr_no_norm[2,0] * dvr_num[2,0] )
+    
+    #dul and dvl
+    dur = (dur_num * norm_rr - rayr_no_norm * dur_denom) / (norm_rr ** 2)
+    dvr = (dvr_num * norm_rr - rayr_no_norm * dvr_denom) / (norm_rr ** 2)
+        
+    
+    #derivate of RL w.r.t ur and vr are 0
     dul = np.zeros(shape = (3,1))
     dvl = np.zeros(shape = (3,1))
     #putting them together
@@ -120,9 +133,9 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
     P = (Pl + Pr) / 2
     # 3x3 landmark point covariance matrix (need to form
     # the 4x4 image plane covariance matrix first).
-    S = np.hstack([Sl, np.zeros(shape = (2,2)) ])
-    S = np.vstack( [S,np.hstack([np.zeros(shape = (2,2)), Sr ])] )
-    
+    curvatures = np.hstack([Sl, np.zeros(shape = (2,2)) ])
+    curvatures = np.vstack( [curvatures,np.hstack([np.zeros(shape = (2,2)), Sr ])] )
+    S = JP @ curvatures @ JP.T
     #------------------
 
     return Pl, Pr, P, S
